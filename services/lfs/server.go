@@ -158,22 +158,24 @@ func DownloadHandler(ctx *context.Context) {
 	}
 }
 
-// MultipartBatchHandler provides the batch api which support multipart
-func MultipartBatchHandler(ctx *context.Context) {
-	//TODO: Support both basic and multipart transfers
-	//			1. basic and multipart transfer should point to different verify endpoint
+func BatchHandlerAdapter(ctx *context.Context) {
 	var br lfs_module.BatchRequest
 	if err := decodeJSON(ctx.Req, &br); err != nil {
 		log.Trace("Unable to decode BATCH request vars: Error: %v", err)
 		writeStatus(ctx, http.StatusBadRequest)
 		return
 	}
-
-	if !acceptableTransfers(br.Transfers) {
-		log.Trace("Unable to perform BATCH request, multipart is required")
-		writeStatus(ctx, http.StatusBadRequest)
+	if isMultipartTransfers(br.Transfers) {
+		log.Trace("handle batch request with multipart transfer")
+		MultipartBatchHandler(ctx, &br)
+	} else {
+		log.Trace("handle batch request with basic transfer")
+		BatchHandler(ctx, &br)
 	}
+}
 
+// MultipartBatchHandler provides the batch api which support multipart
+func MultipartBatchHandler(ctx *context.Context, br *lfs_module.BatchRequest) {
 	var isUpload bool
 	if br.Operation == "upload" {
 		isUpload = true
@@ -288,14 +290,7 @@ func MultipartBatchHandler(ctx *context.Context) {
 }
 
 // BatchHandler provides the batch api
-func BatchHandler(ctx *context.Context) {
-	var br lfs_module.BatchRequest
-	if err := decodeJSON(ctx.Req, &br); err != nil {
-		log.Trace("Unable to decode BATCH request vars: Error: %v", err)
-		writeStatus(ctx, http.StatusBadRequest)
-		return
-	}
-
+func BatchHandler(ctx *context.Context, br *lfs_module.BatchRequest) {
 	var isUpload bool
 	if br.Operation == "upload" {
 		isUpload = true
@@ -692,7 +687,7 @@ func buildMultiPartObjectResponse(rc *requestContext, pointer lfs_module.Pointer
 	return rep
 }
 
-func acceptableTransfers(transfers []string) bool {
+func isMultipartTransfers(transfers []string) bool {
 	for _, a := range transfers {
 		if a == "multipart" {
 			return true

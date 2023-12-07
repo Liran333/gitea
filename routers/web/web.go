@@ -1498,7 +1498,7 @@ func registerRoutes(m *web.Route) {
 
 		m.Group("/{reponame}", func() {
 			m.Group("/info/lfs", func() {
-				m.Post("/objects/batch", lfs.CheckAcceptMediaType, lfs.MultipartBatchHandler)
+				m.Post("/objects/batch", lfs.CheckAcceptMediaType, lfs.BatchHandlerAdapter)
 				m.Put("/objects/{oid}/{size}", lfs.UploadHandler)
 				m.Get("/objects/{oid}/{filename}", lfs.DownloadHandler)
 				m.Get("/objects/{oid}", lfs.DownloadHandler)
