@@ -6,6 +6,7 @@ import (
 	"code.gitea.io/gitea/modules/structs"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
 	"net/http"
@@ -130,6 +131,10 @@ func (hwc *HWCloudStorage) CommitUpload(path, additionalParameter string) error 
 	if err != nil {
 		log.Error("lfs[multipart] unable to decode additional parameter", additionalParameter)
 		return err
+	}
+	if len(param.UploadID) == 0 || len(param.PartIDs) == 0 {
+		log.Error("lfs[multipart] failed to commit objects, parameter is empty %v", param)
+		return errors.New("parameter is empty")
 	}
 	log.Trace("lfs[multipart] start to commit upload object %v", param)
 	//merge multipart

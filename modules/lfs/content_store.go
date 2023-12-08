@@ -110,14 +110,19 @@ func (s *ContentStore) CommitAndVerify(pointer Pointer, commitParameter string) 
 	p := pointer.RelativePath()
 	err := s.ObjectStorage.CommitUpload(p, commitParameter)
 	if err != nil {
-		log.Error("Unable commit file: %s for LFS OID[%s] Error: %v", p, pointer.Oid, err)
+		log.Error("lfs[multipart] Unable commit file: %s for LFS OID[%s] Error: %v", p, pointer.Oid, err)
 		return false, err
 	}
 	fi, err := s.ObjectStorage.Stat(p)
 	if os.IsNotExist(err) || (err == nil && fi.Size() != pointer.Size) {
+		if err != nil {
+			log.Warn("lfs[multipart] Object does not exist ")
+		} else {
+			log.Warn("lfs[multipart] Object size does not match ")
+		}
 		return false, nil
 	} else if err != nil {
-		log.Error("Unable stat file: %s for LFS OID[%s] Error: %v", p, pointer.Oid, err)
+		log.Error("lfs[multipart] Unable stat file: %s for LFS OID[%s] Error: %v", p, pointer.Oid, err)
 		return false, err
 	}
 	return true, nil
