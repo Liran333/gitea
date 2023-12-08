@@ -110,6 +110,7 @@ func (s *ContentStore) CommitAndVerify(pointer Pointer, commitParameter string) 
 	p := pointer.RelativePath()
 	err := s.ObjectStorage.CommitUpload(p, commitParameter)
 	if err != nil {
+		log.Error("Unable commit file: %s for LFS OID[%s] Error: %v", p, pointer.Oid, err)
 		return false, err
 	}
 	fi, err := s.ObjectStorage.Stat(p)

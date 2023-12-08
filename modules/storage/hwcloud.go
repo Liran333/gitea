@@ -131,6 +131,7 @@ func (hwc *HWCloudStorage) CommitUpload(path, additionalParameter string) error 
 		log.Error("lfs[multipart] unable to decode additional parameter", additionalParameter)
 		return err
 	}
+	log.Trace("lfs[multipart] start to commit upload object %v", param)
 	//merge multipart
 	parts := make([]obs.Part, 0, len(param.PartIDs))
 	for _, p := range param.PartIDs {
