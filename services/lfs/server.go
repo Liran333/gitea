@@ -672,7 +672,6 @@ func buildMultiPartObjectResponse(rc *requestContext, pointer lfs_module.Pointer
 				headers := make(map[string]string)
 				verify.Headers = &headers
 			}
-			log.Error("the header is %v", verify.Headers)
 			for key, value := range header {
 				(*verify.Headers)[key] = value
 			}

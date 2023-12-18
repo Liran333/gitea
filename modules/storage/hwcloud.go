@@ -56,18 +56,61 @@ type HWCloudStorage struct {
 }
 
 func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (parts []*structs.MultipartObjectPart, abort *structs.MultipartEndpoint, verify *structs.MultipartEndpoint, err error) {
+	objectKey := hwc.buildMinioPath(path)
+	taskParts := map[int64]obs.Part{}
+	uploadID := ""
 	//1. list all the multipart tasks
-	//TODO
+	listMultipart := &obs.ListMultipartUploadsInput{}
+	listMultipart.Prefix = objectKey
+	listMultipart.Bucket = hwc.bucket
+	listResult, err := hwc.hwclient.ListMultipartUploads(listMultipart)
+	if err != nil {
+		log.Error("lfs[multipart] Failed to list existing multipart task %s and %s", hwc.bucket, objectKey)
+		return nil, nil, nil, err
+	}
+	if len(listResult.Uploads) != 0 {
+		//remove all unfinished tasks if multiple tasks are found
+		if len(listResult.Uploads) > 1 {
+			for _, task := range listResult.Uploads {
+				abortRequest := &obs.AbortMultipartUploadInput{}
+				abortRequest.Key = objectKey
+				abortRequest.Bucket = hwc.bucket
+				abortRequest.UploadId = task.UploadId
+				_, err = hwc.hwclient.AbortMultipartUpload(abortRequest)
+				if err != nil {
+					log.Error("lfs[multipart] Failed to abort existing multipart task %s and %s %s", hwc.bucket, objectKey, task.UploadId)
+					return nil, nil, nil, err
+				}
+			}
+		} else {
+			//find out all finished tasks
+			partRequest := &obs.ListPartsInput{}
+			partRequest.Key = objectKey
+			partRequest.Bucket = hwc.bucket
+			partRequest.UploadId = listResult.Uploads[0].UploadId
+			uploadID = listResult.Uploads[0].UploadId
+			parts, err := hwc.hwclient.ListParts(partRequest)
+			if err != nil {
+				log.Error("lfs[multipart] Failed to get existing multipart task part %s and %s %s", hwc.bucket, objectKey)
+			}
+			for _, content := range parts.Parts {
+				taskParts[int64(content.PartNumber)] = content
+			}
+		}
+	}
 	//2. get and return all unfinished tasks, clean up the task if needed
 	//TODO
 	//3. Initialize multipart task
-	log.Trace("lfs[multipart] Starting to create multipart task %s and %s", hwc.bucket, hwc.buildMinioPath(path))
-	upload := obs.InitiateMultipartUploadInput{}
-	upload.Key = hwc.buildMinioPath(path)
-	upload.Bucket = hwc.bucket
-	multipart, err := hwc.hwclient.InitiateMultipartUpload(&upload)
-	if err != nil {
-		return nil, nil, nil, err
+	if uploadID == "" {
+		log.Trace("lfs[multipart] Starting to create multipart task %s and %s", hwc.bucket, objectKey)
+		upload := obs.InitiateMultipartUploadInput{}
+		upload.Key = hwc.buildMinioPath(path)
+		upload.Bucket = hwc.bucket
+		multipart, err := hwc.hwclient.InitiateMultipartUpload(&upload)
+		uploadID = multipart.UploadId
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	//generate part
 	currentPart := int64(0)
@@ -75,23 +118,33 @@ func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (part
 		if currentPart*multipart_chunk_size >= size {
 			break
 		}
+		partSize := size - currentPart*multipart_chunk_size
+		if partSize > multipart_chunk_size {
+			partSize = multipart_chunk_size
+		}
+		//check part exists and length matches
+		if value, existed := taskParts[currentPart+1]; existed {
+			if value.Size == partSize {
+				log.Trace("lfs[multipart] Found existing part %d for multipart task %s and %s, will skip generating part Url", currentPart+1, hwc.bucket, objectKey)
+				currentPart += 1
+				continue
+			} else {
+				log.Trace("lfs[multipart] Found existing part %d while size not matched for multipart task %s and %s", currentPart+1, hwc.bucket, objectKey)
+			}
+		}
 		request := obs.CreateSignedUrlInput{
 			Method:  obs.HttpMethodPut,
 			Bucket:  hwc.bucket,
-			Key:     hwc.buildMinioPath(path),
+			Key:     objectKey,
 			Expires: multipart_default_expire,
 			QueryParams: map[string]string{
 				"partNumber": strconv.FormatInt(currentPart+1, 10),
-				"uploadId":   multipart.UploadId,
+				"uploadId":   uploadID,
 			},
 		}
 		result, errorMessage := hwc.hwclient.CreateSignedUrl(&request)
 		if errorMessage != nil {
 			return nil, nil, nil, err
-		}
-		partSize := size - currentPart*multipart_chunk_size
-		if partSize > multipart_chunk_size {
-			partSize = multipart_chunk_size
 		}
 		var part = &structs.MultipartObjectPart{
 			Index: int(currentPart) + 1,
@@ -114,7 +167,7 @@ func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (part
 	//generate verify
 	verify = &structs.MultipartEndpoint{
 		Params: &map[string]string{
-			"upload_id": multipart.UploadId,
+			"upload_id": uploadID,
 		},
 		AggregationParams: &map[string]string{
 			"key":  "part_ids",
