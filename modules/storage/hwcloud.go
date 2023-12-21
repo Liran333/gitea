@@ -224,11 +224,11 @@ func (hwc *HWCloudStorage) URL(path, name string) (*url.URL, error) {
 		return nil, err
 	}
 
-	//TODO: support presigned CDN rul
+	//NOTE: it will work since CDN will replace hostname back to obs domain and that will make signed url work.
 	v, err := url.Parse(output.SignedUrl)
 	if err == nil {
 		v.Host = hwc.bucketDomain
-		v.Scheme = "http"
+		v.Scheme = "https"
 	}
 
 	return v, err
