@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 const multipart_chunk_size int64 = 20000000
@@ -125,7 +126,15 @@ func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (part
 		//check part exists and length matches
 		if value, existed := taskParts[currentPart+1]; existed {
 			if value.Size == partSize {
-				log.Trace("lfs[multipart] Found existing part %d for multipart task %s and %s, will skip generating part Url", currentPart+1, hwc.bucket, objectKey)
+				log.Trace("lfs[multipart] Found existing part %d for multipart task %s and %s, will add etag information", currentPart+1, hwc.bucket, objectKey)
+				var part = &structs.MultipartObjectPart{
+					Index:             int(currentPart) + 1,
+					Pos:               currentPart * multipart_chunk_size,
+					Size:              partSize,
+					Etag:              strings.Trim(value.ETag, "\""),
+					MultipartEndpoint: nil,
+				}
+				parts = append(parts, part)
 				currentPart += 1
 				continue
 			} else {
