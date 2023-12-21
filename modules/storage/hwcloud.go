@@ -15,7 +15,7 @@ import (
 )
 
 const multipart_chunk_size int64 = 20000000
-const multipart_default_expire int = 1800
+const default_expire int = 1800
 
 type MultipartPartID struct {
 	Etag  string `json:"etag"`
@@ -136,7 +136,7 @@ func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (part
 			Method:  obs.HttpMethodPut,
 			Bucket:  hwc.bucket,
 			Key:     objectKey,
-			Expires: multipart_default_expire,
+			Expires: default_expire,
 			QueryParams: map[string]string{
 				"partNumber": strconv.FormatInt(currentPart+1, 10),
 				"uploadId":   uploadID,
@@ -151,7 +151,7 @@ func (hwc *HWCloudStorage) GenerateMultipartParts(path string, size int64) (part
 			Pos:   currentPart * multipart_chunk_size,
 			Size:  partSize,
 			MultipartEndpoint: &structs.MultipartEndpoint{
-				ExpiresIn:         multipart_default_expire,
+				ExpiresIn:         default_expire,
 				Href:              result.SignedUrl,
 				Method:            http.MethodPut,
 				Headers:           nil,
@@ -217,7 +217,7 @@ func (hwc *HWCloudStorage) URL(path, name string) (*url.URL, error) {
 	input.Method = obs.HttpMethodGet
 	input.Bucket = hwc.bucket
 	input.Key = hwc.buildMinioPath(path)
-	input.Expires = 3600
+	input.Expires = default_expire
 
 	output, err := hwc.hwclient.CreateSignedUrl(input)
 	if err != nil {
